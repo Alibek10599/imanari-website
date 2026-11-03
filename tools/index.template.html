@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frame: one file describes the whole app</title>
+<meta name="description" content="Frame is a small language for declaring an app's data, actions, screens, limits, recovery and repair in one file. It compiles to a native Rust backend and a browser UI.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fragment+Mono&family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="wordmark" href="./" aria-label="Frame home"><span>frame</span></a>
+  <nav aria-label="Primary">
+    <a href="{{REPO}}/blob/main/docs/spec.md">Spec</a>
+    <a href="{{REPO}}/blob/main/CHANGELOG.md">Changelog</a>
+    <a href="{{REPO}}">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="intro">
+    <h1>One file describes the whole app.</h1>
+    <p class="lede">Frame is a small language for declaring an app's data, actions, screens, limits, recovery and repair in one place. The compiler turns it into a native Rust backend and a browser UI, and checks that what you declared is what runs.</p>
+    <p class="actions">
+      <a class="button" href="#install">Download Frame 0.1</a>
+      <a class="quiet" href="{{REPO}}/blob/main/docs/spec.md">Read the spec</a>
+    </p>
+    <p class="fine">Developer preview for macOS and Linux.</p>
+  </section>
+
+  <section class="listing" aria-labelledby="listing-title">
+    <div class="prose">
+      <h2 id="listing-title">The reference app, annotated</h2>
+      <p>This is <a href="{{REPO}}/blob/main/examples/fieldwork/fieldwork.frame">examples/fieldwork/fieldwork.frame</a>, exactly as it ships. Two users create, list and complete their own tasks. The marked lines are the ones the compiler and runtime hold you to.</p>
+    </div>
+    <div class="code">
+{{LISTING}}
+    </div>
+  </section>
+
+  <section class="build" aria-labelledby="build-title">
+    <div class="prose">
+      <h2 id="build-title">What <code>frame build</code> writes</h2>
+      <p>Everything the compiler produces lands in <code>.frame/</code> next to your source. The IR and graph are deterministic and hashed, so the same source always gives the same output. Agents read a bounded context for the one node they are changing, not the whole project.</p>
+    </div>
+<pre class="tree" aria-label="Build output">.frame/
+├── ir.json             typed IR with semantic and source hashes
+├── graph.json          every node and the edges between them
+├── generated/app/      Rust backend: Axum and SQLx on SQLite
+├── generated/web/      browser UI built from native controls
+├── generated/runtime/  the runtime the backend links against
+├── build/              the compiled backend
+└── context/&lt;node&gt;/     bounded context for changing one node</pre>
+  </section>
+
+  <section class="install" id="install" aria-labelledby="install-title">
+    <div class="prose">
+      <h2 id="install-title">Install</h2>
+      <p>Frame compiles apps with Cargo, so install Rust with <a href="https://rustup.rs">rustup</a> first. Generated apps pin their own Rust version, and rustup fetches it on the first build.</p>
+    </div>
+
+    <div class="platforms">
+      <div class="platform">
+        <h3>macOS, Apple silicon</h3>
+<pre><code>curl -fsSL {{DL}}/frame-aarch64-apple-darwin.tar.gz | tar -xz
+sudo install frame-aarch64-apple-darwin/frame /usr/local/bin/frame</code></pre>
+        <p class="files"><a href="{{DL}}/frame-aarch64-apple-darwin.tar.gz">Download .tar.gz</a> <a href="{{DL}}/frame-aarch64-apple-darwin.tar.gz.sha256">SHA-256</a></p>
+      </div>
+      <div class="platform">
+        <h3>Linux, x86_64</h3>
+<pre><code>curl -fsSL {{DL}}/frame-x86_64-unknown-linux-gnu.tar.gz | tar -xz
+sudo install frame-x86_64-unknown-linux-gnu/frame /usr/local/bin/frame</code></pre>
+        <p class="files"><a href="{{DL}}/frame-x86_64-unknown-linux-gnu.tar.gz">Download .tar.gz</a> <a href="{{DL}}/frame-x86_64-unknown-linux-gnu.tar.gz.sha256">SHA-256</a></p>
+      </div>
+      <div class="platform">
+        <h3>Linux, arm64</h3>
+<pre><code>curl -fsSL {{DL}}/frame-aarch64-unknown-linux-gnu.tar.gz | tar -xz
+sudo install frame-aarch64-unknown-linux-gnu/frame /usr/local/bin/frame</code></pre>
+        <p class="files"><a href="{{DL}}/frame-aarch64-unknown-linux-gnu.tar.gz">Download .tar.gz</a> <a href="{{DL}}/frame-aarch64-unknown-linux-gnu.tar.gz.sha256">SHA-256</a></p>
+      </div>
+      <div class="platform">
+        <h3>From source</h3>
+<pre><code>cargo install --locked --git {{REPO}} frame</code></pre>
+        <p class="files"><a href="{{REPO}}/releases">All releases</a></p>
+      </div>
+    </div>
+
+    <div class="prose">
+      <h3>Your first app</h3>
+<pre><code>frame init hello
+cd hello
+frame dev</code></pre>
+      <p><code>frame dev</code> builds the app, starts it under the supervisor, and prints a one-time link that signs you in as a local development user. The first build compiles the backend's dependencies and takes about a minute.</p>
+    </div>
+  </section>
+
+  <section class="status" aria-labelledby="status-title">
+    <div class="prose">
+      <h2 id="status-title">What 0.1 does not do yet</h2>
+      <p>0.1 runs on your own machine. Mobile targets, production sign-in, PostgreSQL, migrations, workflows and deploys come in later releases. Declaring any of them today fails with a diagnostic instead of being quietly ignored.</p>
+      <p>Sandboxed repair needs macOS. On Linux, repair stops after static validation and reports that no sandbox is available.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="bottom">
+  <p>Frame is dual-licensed under <a href="{{REPO}}/blob/main/LICENSE-MIT">MIT</a> and <a href="{{REPO}}/blob/main/LICENSE-APACHE">Apache 2.0</a>. Source, issues and releases are on <a href="{{REPO}}">GitHub</a>.</p>
+</footer>
+</body>
+</html>
