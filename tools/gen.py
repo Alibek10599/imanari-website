@@ -6,7 +6,7 @@ from pathlib import Path
 src_path, out_path = Path(sys.argv[1]), Path(sys.argv[2])
 lines = src_path.read_text().rstrip("\n").split("\n")
 
-REPO = "https://github.com/Alibek10599/frame"
+REPO = "https://github.com/Alibek10599/imanari"
 DL = REPO + "/releases/latest/download"
 
 def find(text, start=1):
@@ -38,10 +38,10 @@ notes = [
     (block("recovery backend_process {"), "max_restarts = 3;",
      "A separate supervisor restarts the backend within this budget. When the budget runs out, it stops and tells you instead of looping."),
     (block("repair local_candidate {"), "editable_actions = [complete_task];",
-     "When a protected test fails, Frame proposes a fix and validates it in a sandbox. It may edit only these actions, and nothing ships until you apply it."),
+     "When a protected test fails, Imanari proposes a fix and validates it in a sandbox. It may edit only these actions, and nothing ships until you apply it."),
 ]
 
-KEYWORDS = r"\b(frame|app|identity|entity|field|action|input|screen|form|list|button|runtime|recovery|repair)\b(?= [\w\"])"
+KEYWORDS = r"\b(imanari|app|identity|entity|field|action|input|screen|form|list|button|runtime|recovery|repair)\b(?= [\w\"])"
 
 def render(line):
     stripped = line.lstrip()
