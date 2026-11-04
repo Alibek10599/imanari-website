@@ -66,24 +66,24 @@ p code, h2 code { font-size: 0.9em; }
 .top nav a:hover { text-decoration: underline; }
 
 .wordmark {
-  position: relative;
-  display: inline-block;
-  padding: 0.2rem 0.55rem 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
   font-weight: 850;
   font-size: 1.375rem;
   letter-spacing: -0.03em;
   line-height: 1;
   text-decoration: none;
+}
+
+.belt {
+  width: 2.75rem;
+  height: 0.5rem;
+  border-radius: 1px;
   background:
-    linear-gradient(var(--ink), var(--ink)) top left / 0.5rem 2px,
-    linear-gradient(var(--ink), var(--ink)) top left / 2px 0.5rem,
-    linear-gradient(var(--ink), var(--ink)) top right / 0.5rem 2px,
-    linear-gradient(var(--ink), var(--ink)) top right / 2px 0.5rem,
-    linear-gradient(var(--ink), var(--ink)) bottom left / 0.5rem 2px,
-    linear-gradient(var(--ink), var(--ink)) bottom left / 2px 0.5rem,
-    linear-gradient(var(--ink), var(--ink)) bottom right / 0.5rem 2px,
-    linear-gradient(var(--ink), var(--ink)) bottom right / 2px 0.5rem;
-  background-repeat: no-repeat;
+    repeating-linear-gradient(to right, #fff 0 2px, transparent 2px 5px) right calc(0.35rem + 4px) center / 17px 100% no-repeat,
+    linear-gradient(#000, #000) right 0.35rem center / 1.45rem 100% no-repeat,
+    var(--ink);
 }
 
 section { padding: 4rem 0; border-top: 1px solid var(--rule); }
