@@ -48,7 +48,7 @@ a:hover { text-decoration-thickness: 2px; }
 a:focus-visible, .button:focus-visible { outline: 3px solid var(--marker-edge); outline-offset: 3px; border-radius: 2px; }
 
 code, pre { font-family: var(--mono); }
-p code, h2 code { font-size: 0.9em; }
+p code, h2 code, h3 code, li code, td code { font-size: 0.9em; }
 
 .top, main, .bottom { max-width: 74rem; margin: 0 auto; padding-left: var(--gutter); padding-right: var(--gutter); }
 
@@ -63,7 +63,7 @@ p code, h2 code { font-size: 0.9em; }
 
 .top nav { display: flex; gap: 1.25rem; font-size: 1rem; }
 .top nav a { text-decoration: none; }
-.top nav a:hover { text-decoration: underline; }
+.top nav a:hover, .top nav a[aria-current="page"] { text-decoration: underline; }
 
 .wordmark {
   display: inline-flex;
@@ -178,7 +178,7 @@ p { margin: 0 0 1rem; }
   border-top: 2px solid var(--marker-edge);
 }
 
-.tree, .platform pre, .prose pre {
+.tree, .platform pre, .prose pre, .doc pre {
   margin: 1.5rem 0 0;
   padding: var(--code-pad) 1.25rem;
   background: var(--panel);
@@ -202,6 +202,38 @@ p { margin: 0 0 1rem; }
 .status p { color: var(--ink); }
 
 .bottom { padding-top: 2rem; padding-bottom: 3rem; border-top: 1px solid var(--rule); color: var(--graphite); font-size: 1rem; }
+
+.doc { padding-top: 2.5rem; padding-bottom: 4rem; }
+.doc article { max-width: 46rem; }
+.doc h1 { max-width: none; margin-bottom: 1.5rem; font-size: clamp(2.25rem, 3vw + 1rem, 3.25rem); line-height: 1.05; }
+.doc h2 { margin: 3.5rem 0 1rem; padding-top: 2rem; border-top: 1px solid var(--rule); }
+.doc h3 { margin: 2rem 0 0.6rem; font-size: 1.3rem; }
+.doc h2 a { text-decoration: none; }
+.doc h2 a:hover { text-decoration: underline; }
+.doc h1, .doc h2, .doc h3 { scroll-margin-top: 1.5rem; }
+.doc ul, .doc ol { margin: 0 0 1rem; padding-left: 1.4rem; }
+.doc li { margin-bottom: 0.45rem; }
+.doc pre { margin-bottom: 1.5rem; }
+
+.table { margin: 1.5rem 0; overflow-x: auto; }
+.doc table { width: 100%; border-collapse: collapse; font-size: 1rem; line-height: 1.45; }
+.doc th, .doc td { padding: 0.55rem 1rem 0.55rem 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule); }
+.doc th { border-bottom: 2px solid var(--ink); }
+.doc td:first-child code { white-space: nowrap; }
+
+.source { margin-top: 3.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule); color: var(--graphite); font-size: 1rem; }
+
+.toc { margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--rule); }
+.toc p { margin: 0 0 0.75rem; color: var(--graphite); font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.toc ul { margin: 0; padding: 0; list-style: none; font-size: 0.9375rem; line-height: 1.35; }
+.toc li { margin-bottom: 0.55rem; }
+.toc a { color: var(--graphite); text-decoration: none; }
+.toc a:hover { color: var(--ink); text-decoration: underline; }
+
+@media (min-width: 60rem) {
+  .doc.with-toc { display: grid; grid-template-columns: 15rem minmax(0, 46rem); column-gap: 4rem; align-items: start; }
+  .doc.with-toc .toc { position: sticky; top: 1.5rem; max-height: calc(100vh - 3rem); overflow-y: auto; margin: 0; padding: 0; border: 0; }
+}
 
 @media (max-width: 60rem) {
   .seg { grid-template-columns: minmax(0, 1fr); }
