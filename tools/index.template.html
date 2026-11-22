@@ -1,18 +1,31 @@
 <main>
   <section class="intro">
+    <div>
     <h1>One file describes the whole app.</h1>
     <p class="lede">Imanari is a small language for declaring an app's data, actions, screens, limits, recovery and repair in one place. The compiler turns it into a native Rust backend and a browser UI, and checks that what you declared is what runs.</p>
     <p class="actions">
       <a class="button" href="#install">Download Imanari</a>
       <a class="quiet" href="spec.html">Read the spec</a>
     </p>
-    <p class="fine">Version 0.2, a developer preview for macOS and Linux.</p>
+    <p class="fine">Version 0.3, a developer preview for macOS and Linux. It adds PostgreSQL, OpenID Connect sign-in and blue-green Docker deploys. <a href="changelog.html">See what changed</a>.</p>
+    </div>
+    <figure class="session">
+<pre aria-label="Terminal session"><code><span class="cmd">nari init hello</span>
+created ./hello/hello.nari
+<span class="cmd">cd hello &amp;&amp; nari check</span>
+ok: hello.nari is valid
+<span class="cmd">nari dev</span>
+state: Starting
+open: http://127.0.0.1:7331/#bootstrap=…
+<span class="hl">ready:</span> http://127.0.0.1:7331/ (pid 30313, …)</code></pre>
+      <figcaption>From an empty folder to a running app you are signed in to.</figcaption>
+    </figure>
   </section>
 
   <section class="listing" aria-labelledby="listing-title">
     <div class="prose">
       <h2 id="listing-title">The reference app, annotated</h2>
-      <p>This is <a href="{{REPO}}/blob/main/examples/fieldwork/fieldwork.nari">examples/fieldwork/fieldwork.nari</a>, exactly as it ships. Two users create, list and complete their own tasks. The marked lines are the ones the compiler and runtime hold you to.</p>
+      <p>This is <a href="{{REPO}}/blob/main/examples/fieldwork/fieldwork.nari">examples/fieldwork/fieldwork.nari</a>, exactly as it ships. Two users create, list and complete their own tasks. The marked lines are the ones the compiler and runtime hold you to. Point at a note to see the block it explains.</p>
     </div>
     <div class="code">
 {{LISTING}}
@@ -27,11 +40,50 @@
 <pre class="tree" aria-label="Build output">.nari/
 ├── ir.json             typed IR with semantic and source hashes
 ├── graph.json          every node and the edges between them
-├── generated/app/      Rust backend: Axum and SQLx on SQLite
+├── generated/app/      Rust backend on Axum, for SQLite or PostgreSQL
 ├── generated/web/      browser UI built from native controls
 ├── generated/runtime/  the runtime the backend links against
 ├── build/              the compiled backend
-└── context/&lt;node&gt;/     bounded context for changing one node</pre>
+├── context/&lt;node&gt;/     bounded context for changing one node
+└── deploy/plans/       reviewed deployment plans, named by hash</pre>
+  </section>
+
+  <section class="deploy" id="deploy" aria-labelledby="deploy-title">
+    <div class="split">
+      <div class="prose">
+        <h2 id="deploy-title">Releases you can read first</h2>
+        <p><code>nari plan</code> builds a Docker image and writes down everything the release will do: the image digest, resources, schema changes, readiness rule and a dated cost estimate. The plan is named by its hash. <code>nari release</code> applies exactly that plan, or refuses if the source, image or target changed since you read it.</p>
+<pre><code>nari plan --database-url-env DATABASE_URL
+nari release &lt;plan hash&gt;</code></pre>
+        <ol class="steps">
+          <li><strong>Start.</strong> The new version boots next to the running one, on the same database.</li>
+          <li><strong>Check.</strong> It has to report ready and pass a health check inside the private network.</li>
+          <li><strong>Switch.</strong> The proxy reloads and sends traffic to the new version, then confirms it answers.</li>
+          <li><strong>Retire.</strong> The old version drains for five seconds and stops.</li>
+        </ol>
+        <p class="play-row"><button class="play" type="button" hidden>Play a release</button></p>
+      </div>
+
+      <figure class="rollout" data-step="0">
+        <svg viewBox="0 0 440 236" role="img" aria-labelledby="rollout-title">
+          <title id="rollout-title">An nginx proxy in front of two app containers, blue and green</title>
+          <path class="route" d="M220 66 C220 112 110 112 110 156"/>
+          <path class="route" d="M220 66 C220 112 330 112 330 156"/>
+          <path class="flow flow-blue" pathLength="1" d="M220 66 C220 112 110 112 110 156"/>
+          <path class="flow flow-green" pathLength="1" d="M220 66 C220 112 330 112 330 156"/>
+          <rect class="box proxy" x="150" y="18" width="140" height="48" rx="6"/>
+          <text class="name" x="220" y="47">proxy</text>
+          <rect class="box blue" x="30" y="156" width="160" height="62" rx="6"/>
+          <text class="name" x="110" y="183">blue</text>
+          <text class="state state-blue" x="110" y="204">v1 serving</text>
+          <rect class="box green" x="250" y="156" width="160" height="62" rx="6"/>
+          <text class="name" x="330" y="183">green</text>
+          <text class="state state-green" x="330" y="204">idle</text>
+        </svg>
+        <figcaption class="status" aria-live="polite">Version 1 serves all traffic.</figcaption>
+      </figure>
+    </div>
+    <p class="fine after">If the new version never gets ready, traffic never moves. If it fails after the switch, the proxy routes back. Schema changes are additive, so both versions work against the same database while they overlap.</p>
   </section>
 
   <section class="install" id="install" aria-labelledby="install-title">
@@ -41,25 +93,25 @@
     </div>
 
     <div class="platforms">
-      <div class="platform">
+      <div class="platform" id="install-macos">
         <h3>macOS, Apple silicon</h3>
 <pre><code>curl -fsSL {{DL}}/imanari-aarch64-apple-darwin.tar.gz | tar -xz
 sudo install imanari-aarch64-apple-darwin/nari /usr/local/bin/nari</code></pre>
         <p class="files"><a href="{{DL}}/imanari-aarch64-apple-darwin.tar.gz">Download .tar.gz</a> <a href="{{DL}}/imanari-aarch64-apple-darwin.tar.gz.sha256">SHA-256</a></p>
       </div>
-      <div class="platform">
+      <div class="platform" id="install-linux-x64">
         <h3>Linux, x86_64</h3>
 <pre><code>curl -fsSL {{DL}}/imanari-x86_64-unknown-linux-gnu.tar.gz | tar -xz
 sudo install imanari-x86_64-unknown-linux-gnu/nari /usr/local/bin/nari</code></pre>
         <p class="files"><a href="{{DL}}/imanari-x86_64-unknown-linux-gnu.tar.gz">Download .tar.gz</a> <a href="{{DL}}/imanari-x86_64-unknown-linux-gnu.tar.gz.sha256">SHA-256</a></p>
       </div>
-      <div class="platform">
+      <div class="platform" id="install-linux-arm64">
         <h3>Linux, arm64</h3>
 <pre><code>curl -fsSL {{DL}}/imanari-aarch64-unknown-linux-gnu.tar.gz | tar -xz
 sudo install imanari-aarch64-unknown-linux-gnu/nari /usr/local/bin/nari</code></pre>
         <p class="files"><a href="{{DL}}/imanari-aarch64-unknown-linux-gnu.tar.gz">Download .tar.gz</a> <a href="{{DL}}/imanari-aarch64-unknown-linux-gnu.tar.gz.sha256">SHA-256</a></p>
       </div>
-      <div class="platform">
+      <div class="platform" id="install-source">
         <h3>From source</h3>
 <pre><code>cargo install --locked --git {{REPO}} imanari</code></pre>
         <p class="files"><a href="{{REPO}}/releases">All releases</a></p>
@@ -78,7 +130,7 @@ nari dev</code></pre>
   <section class="status" aria-labelledby="status-title">
     <div class="prose">
       <h2 id="status-title">What Imanari does not do yet</h2>
-      <p>For now Imanari runs on your own machine. Mobile targets, production sign-in, PostgreSQL, migrations, workflows and deploys come in later releases. Declaring any of them today fails with a diagnostic instead of being quietly ignored.</p>
+      <p>Mobile targets, workflows, external adapters, native extensions and canary releases come in later releases. Declaring any of them today fails with a diagnostic instead of being quietly ignored. Deploys go to a single Docker engine, and schema changes that remove, rename or retype stored data are refused rather than guessed.</p>
       <p>Sandboxed repair needs macOS. On Linux, repair stops after static validation and reports that no sandbox is available.</p>
     </div>
   </section>

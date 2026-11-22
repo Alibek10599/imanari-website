@@ -8,7 +8,9 @@ The site is plain HTML and CSS with no build step. Three pages are generated fro
 python3 tools/gen.py ../imanari
 ```
 
-The Markdown renderer handles headings, paragraphs, lists, tables, fenced code, inline code, bold and links, which is what those documents use. It stops with an error on anything else rather than rendering it wrong. Relative links point at the file on GitHub, and each page names the commit it was rendered from.
+The Markdown renderer handles headings, paragraphs, lists, tables, fenced code, inline code, bold and links, which is what those documents use. It stops with an error on anything else rather than rendering it wrong. Relative links point at the file on GitHub.
+
+`site.js` adds the interactive parts: copy buttons, platform tabs, the release walkthrough, the highlighter sweep on the listing, and the spec's contents tracking. Every page reads fine without it.
 
 Download links point at `releases/latest/download/` in the main repository, so new releases need no change here as long as the archive names stay the same.
 
