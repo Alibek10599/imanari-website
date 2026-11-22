@@ -1,14 +1,13 @@
+import datetime
 import html
 import posixpath
 import re
-import subprocess
 import sys
 from pathlib import Path
 
 repo = Path(sys.argv[1])
 site = Path(__file__).resolve().parent.parent
 lines = (repo / "examples/fieldwork/fieldwork.nari").read_text().rstrip("\n").split("\n")
-sha = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
 
 REPO = "https://github.com/Alibek10599/imanari"
 DL = REPO + "/releases/latest/download"
@@ -67,10 +66,10 @@ if cursor <= len(lines):
     segments.append((cursor, len(lines), None, None))
 
 rows = []
-for start, end, hl, note in segments:
+for k, (start, end, hl, note) in enumerate(segments):
     code = []
     for n in range(start, end + 1):
-        cls = ' class="hl"' if n == hl else ""
+        cls = f' class="hl" style="--i:{sum(1 for s in segments[:k] if s[2])}"' if n == hl else ""
         code.append(f'<span{cls} data-n="{n}">{render(lines[n - 1])}</span>')
     aside = f'<p class="note" style="--at:{hl - start}">{html.escape(note)}</p>' if note else ""
     rows.append(
@@ -121,10 +120,30 @@ def slug(s, seen):
 def cells(row):
     return [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", row.strip().strip("|"))]
 
+RELEASE = re.compile(r"\[([^\]]+)\](?: - (\d{4}-\d{2}-\d{2}))?")
+
+def anchor(ident):
+    return f'<a class="anchor" href="#{ident}" aria-hidden="true" tabindex="-1">#</a>'
+
+def section_head(title, doc, refs, seen):
+    release = RELEASE.fullmatch(title)
+    if not release or release.group(1).lower() not in refs:
+        ident = slug(title, seen)
+        return ident, text(plain(title)), f'<h2 id="{ident}">{inline(title, doc, refs)}{anchor(ident)}</h2>'
+    version, date = release.groups()
+    ident = "v" + version if date else slug(version, seen)
+    head = f'<h2 id="{ident}">{inline(f"[{version}]", doc, refs)}{anchor(ident)}</h2>'
+    if date:
+        day = datetime.date.fromisoformat(date)
+        head += f'<p class="date"><time datetime="{date}">{day.day} {day.strftime("%B %Y")}</time></p>'
+        head += f'<p class="downloads"><a href="{REPO}/releases/tag/v{version}">Downloads</a></p>'
+    return ident, text(version), head
+
 def markdown(doc):
     src = (repo / doc).read_text().rstrip("\n").split("\n")
     refs = {m.group(1).lower(): m.group(2) for m in map(REF.fullmatch, src) if m}
-    out, toc, seen, i = [], [], {}, 0
+    sections, seen, i = [[None, None, None, []]], {}, 0
+    out = sections[0][3]
     while i < len(src):
         line = src[i]
         heading = re.match(r"(#{1,6}) (.*)", line)
@@ -139,12 +158,15 @@ def markdown(doc):
             cls = f' class="language-{html.escape(lang)}"' if lang else ""
             out.append(f"<pre><code{cls}>{text(chr(10).join(src[i + 1:end]))}</code></pre>")
             i = end + 1
+        elif heading and len(heading.group(1)) == 2:
+            sections.append([*section_head(heading.group(2), doc, refs, seen), []])
+            out = sections[-1][3]
+            i += 1
         elif heading:
             level, title = len(heading.group(1)), heading.group(2)
             ident = slug(title, seen)
-            if level == 2:
-                toc.append((ident, text(plain(title))))
-            out.append(f'<h{level} id="{ident}">{inline(title, doc, refs)}</h{level}>')
+            link = anchor(ident) if level > 1 else ""
+            out.append(f'<h{level} id="{ident}">{inline(title, doc, refs)}{link}</h{level}>')
             i += 1
         elif line.startswith("|"):
             end = i
@@ -183,20 +205,20 @@ def markdown(doc):
                 end += 1
             out.append(f"<p>{inline(' '.join(l.strip() for l in src[i:end]), doc, refs)}</p>")
             i = end
-    return toc, "\n".join(out)
+    kept = [s for s in sections[1:] if s[3]]
+    body = "\n".join(sections[0][3]) + "".join(
+        f'\n<section aria-labelledby="{ident}"><div class="head">{head}</div><div class="body">\n' + "\n".join(blocks) + "\n</div></section>"
+        for ident, _, head, blocks in kept
+    )
+    return [(ident, title) for ident, title, _, _ in kept], body
 
-def doc_main(doc, contents):
+def doc_main(doc, kind):
     toc, body = markdown(doc)
     nav = ""
-    if contents:
+    if kind == "spec":
         links = "".join(f'<li><a href="#{ident}">{title}</a></li>' for ident, title in toc)
-        nav = f'<nav class="toc" aria-label="Contents"><p>Contents</p><ul>{links}</ul></nav>\n'
-    source = (
-        f'<p class="source">Rendered from <a href="{REPO}/blob/{sha}/{doc}">{doc}</a> '
-        f'at commit <a href="{REPO}/commit/{sha}"><code>{sha[:7]}</code></a>.</p>'
-    )
-    kind = "doc with-toc" if contents else "doc"
-    return f'<main class="{kind}">\n{nav}<article>\n{body}\n{source}\n</article>\n</main>'
+        nav = f'<details class="toc" open><summary>Contents</summary><nav aria-label="Contents"><ul>{links}</ul></nav></details>\n'
+    return f'<main class="doc {kind}">\n{nav}<article>\n{body}\n</article>\n</main>'
 
 shell = (site / "tools/page.template.html").read_text().replace("{{REPO}}", REPO).replace("{{DL}}", DL)
 
@@ -216,12 +238,12 @@ write(
     "spec.html",
     "Imanari specification",
     "The Imanari specification: the language, compiler, runtime, recovery and repair contract, and the release plan.",
-    doc_main("docs/spec.md", True),
+    doc_main("docs/spec.md", "spec"),
 )
 write(
     "changelog.html",
     "Imanari changelog",
     "Every notable change to Imanari, release by release.",
-    doc_main("CHANGELOG.md", False),
+    doc_main("CHANGELOG.md", "changelog"),
 )
-print(f"wrote index.html, spec.html and changelog.html from {sha[:7]} ({len(lines)} listing lines, {len(notes)} notes)")
+print(f"wrote index.html, spec.html and changelog.html ({len(lines)} listing lines, {len(notes)} notes)")
