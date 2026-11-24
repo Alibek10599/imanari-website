@@ -2,7 +2,7 @@
 
 Source for the [Imanari](https://github.com/Alibek10599/imanari) website, published with GitHub Pages at <https://alibek10599.github.io/imanari-website/>.
 
-The site is plain HTML and CSS with no build step. Four pages are generated from a checkout of the main repository: the home page's annotated listing comes from `examples/fieldwork/fieldwork.nari`, `guide.html` from `docs/guide.md`, `spec.html` from `docs/spec.md`, and `changelog.html` from `CHANGELOG.md`. After any of them changes, regenerate and commit the pages:
+The site is plain HTML and CSS with no build step. Four pages are generated from a checkout of the main repository: the home page's annotated listing comes from `examples/fieldwork/fieldwork.nr`, `guide.html` from `docs/guide.md`, `spec.html` from `docs/spec.md`, and `changelog.html` from `CHANGELOG.md`. After any of them changes, regenerate and commit the pages:
 
 ```sh
 python3 tools/gen.py ../imanari

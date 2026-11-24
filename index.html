@@ -36,9 +36,9 @@
     </div>
     <figure class="session">
 <pre aria-label="Terminal session"><code><span class="cmd">nari init hello</span>
-created ./hello/hello.nari
+created ./hello/hello.nr
 <span class="cmd">cd hello &amp;&amp; nari check</span>
-ok: hello.nari is valid
+ok: hello.nr is valid
 <span class="cmd">nari dev</span>
 state: Starting
 open: http://127.0.0.1:7331/#bootstrap=…
@@ -50,7 +50,7 @@ open: http://127.0.0.1:7331/#bootstrap=…
   <section class="listing" aria-labelledby="listing-title">
     <div class="prose">
       <h2 id="listing-title">The reference app, annotated</h2>
-      <p>This is <a href="https://github.com/Alibek10599/imanari/blob/main/examples/fieldwork/fieldwork.nari">examples/fieldwork/fieldwork.nari</a>, exactly as it ships. Two users create, list and complete their own tasks. The marked lines are the ones the compiler and runtime hold you to. Point at a note to see the block it explains.</p>
+      <p>This is <a href="https://github.com/Alibek10599/imanari/blob/main/examples/fieldwork/fieldwork.nr">examples/fieldwork/fieldwork.nr</a>, exactly as it ships. Two users create, list and complete their own tasks. The marked lines are the ones the compiler and runtime hold you to. Point at a note to see the block it explains.</p>
     </div>
     <div class="code">
 <div class="seg"><pre><code><span data-n="1">imanari &quot;0.1&quot;;</span><span data-n="2"></span><span data-n="3"><span class="k">app</span> fieldwork {</span><span data-n="4">  targets = [web];</span><span data-n="5"></span><span data-n="6">  <span class="k">identity</span> development {</span><span data-n="7">    mode = local_dev;</span><span data-n="8">  }</span><span data-n="9"></span></code></pre></div>

@@ -7,7 +7,7 @@ from pathlib import Path
 
 repo = Path(sys.argv[1])
 site = Path(__file__).resolve().parent.parent
-lines = (repo / "examples/fieldwork/fieldwork.nari").read_text().rstrip("\n").split("\n")
+lines = (repo / "examples/fieldwork/fieldwork.nr").read_text().rstrip("\n").split("\n")
 
 REPO = "https://github.com/Alibek10599/imanari"
 DL = REPO + "/releases/latest/download"
@@ -141,7 +141,7 @@ def section_head(title, doc, refs, seen):
 
 PLAYGROUNDS = {
     "run-it": (
-        "hello", "examples/hello/hello.nari", True,
+        "hello", "examples/hello/hello.nr", True,
         "Or run it right here",
         "This is the same program, compiled in your browser. Edit it on the left and the app on the right rebuilds.",
         [
@@ -151,7 +151,7 @@ PLAYGROUNDS = {
         ],
     ),
     "ownership": (
-        "ownership", "examples/fieldwork/fieldwork.nari", False,
+        "ownership", "examples/fieldwork/fieldwork.nr", False,
         "Two users, one database",
         "The task app is open in two browsers, signed in as different users. The database table underneath shows every row.",
         [
@@ -161,7 +161,7 @@ PLAYGROUNDS = {
         ],
     ),
     "revisions-and-conflicts": (
-        "revision", "examples/fieldwork/fieldwork.nari", False,
+        "revision", "examples/fieldwork/fieldwork.nr", False,
         "Two tabs, one task",
         "Both tabs belong to User A and loaded the task at revision 1.",
         [
@@ -171,7 +171,7 @@ PLAYGROUNDS = {
         ],
     ),
     "safe-retries": (
-        "retry", "examples/fieldwork/fieldwork.nari", False,
+        "retry", "examples/fieldwork/fieldwork.nr", False,
         "A reply that never arrives",
         "The switch below makes the next change commit and then drops the response on its way back.",
         [
@@ -181,7 +181,7 @@ PLAYGROUNDS = {
         ],
     ),
     "crash-recovery": (
-        "recovery", "examples/fieldwork/fieldwork.nari", False,
+        "recovery", "examples/fieldwork/fieldwork.nr", False,
         "Crash it and watch the budget",
         "This backend may restart 3 times in 60 seconds, waiting 100, 500 and then 2000 ms.",
         [
