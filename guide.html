@@ -30,7 +30,7 @@
 <p>This guide teaches you to write an Imanari program and run it. It starts with the smallest complete app, explains every part of the language, and then walks through what the runtime does for you: ownership, revision checks, safe retries and crash recovery.</p>
 <p>The <a href="https://alibek10599.github.io/imanari-website/guide.html">web version of this guide</a> has a playground under each example. You can edit the program there and use the app it describes without installing anything. <a href="https://github.com/Alibek10599/imanari/blob/main/docs/spec.md">spec.md</a> is the normative reference when you need the exact rule.</p>
 <section aria-labelledby="what-a-program-is"><div class="head"><h2 id="what-a-program-is">What a program is<a class="anchor" href="#what-a-program-is" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
-<p>An Imanari program is one <code>.nari</code> file that declares a whole app. You do not write handlers, SQL or page templates. You declare:</p>
+<p>An Imanari program is one <code>.nr</code> file that declares a whole app. You do not write handlers, SQL or page templates. You declare:</p>
 <ul><li><strong>Entities</strong>: the records the app stores, and which field names their owner.</li><li><strong>Actions</strong>: the only operations that touch those records. An action inserts a record, lists records, or updates one.</li><li><strong>Screens</strong>: pages made of forms, lists and buttons, each bound to an action.</li><li><strong>Policy</strong>: who signs in, the request limits, how often a crashed backend may restart, and what an automated repair may change.</li></ul>
 <p>The compiler checks the file and turns it into a native Rust backend, a browser UI, a typed description of the app (<code>ir.json</code>) and a dependency graph.</p>
 <p>Imanari has no functions, loops or expressions in 0.1. Every program is a set of declarations, and the three action kinds are the whole executable vocabulary. That is deliberate: the compiler can prove what each action reads and writes, so it can generate the access checks instead of trusting you to remember them.</p>
@@ -45,7 +45,7 @@ sudo install imanari-aarch64-apple-darwin/nari /usr/local/bin/nari</code></pre>
 <pre><code class="language-sh">nari --version</code></pre>
 </div></section>
 <section aria-labelledby="hello-world"><div class="head"><h2 id="hello-world">Hello, world<a class="anchor" href="#hello-world" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
-<p>Imanari has no <code>print</code>. The smallest useful program is an app that stores a line of text for the signed-in user and shows it back. This is <a href="https://github.com/Alibek10599/imanari/blob/main/examples/hello/hello.nari">examples/hello/hello.nari</a>:</p>
+<p>Imanari has no <code>print</code>. The smallest useful program is an app that stores a line of text for the signed-in user and shows it back. This is <a href="https://github.com/Alibek10599/imanari/blob/main/examples/hello/hello.nr">examples/hello/hello.nr</a>:</p>
 <pre><code class="language-nari">imanari "0.1";
 
 app hello {
@@ -139,22 +139,22 @@ app hello {
 <ol><li><code>imanari "0.1";</code> names the language version. Every file starts with it.</li><li><code>app hello { … }</code> holds everything else. <code>targets = [web];</code> is the only target in 0.1.</li><li><code>identity</code> says how people sign in. <code>local_dev</code> gives you two seeded users on your own machine.</li><li><code>entity Greeting</code> is the stored record. It has a <code>text</code> and an <code>owner</code>.</li><li><code>action say</code> inserts a greeting. The text comes from the request and the owner comes from the session.</li><li><code>action greetings</code> lists the signed-in user's greetings.</li><li><code>screen home</code> is the page: a form that calls <code>say</code>, and a list fed by <code>greetings</code>.</li><li><code>runtime</code>, <code>recovery</code> and <code>repair</code> are required policy blocks. They are explained under <a href="#policy-blocks">Policy blocks</a>.</li></ol>
 </div></section>
 <section aria-labelledby="run-it"><div class="head"><h2 id="run-it">Run it<a class="anchor" href="#run-it" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
-<p>Put the program in a directory of its own. A project is a directory with exactly one <code>.nari</code> file.</p>
+<p>Put the program in a directory of its own. A project is a directory with exactly one <code>.nr</code> file.</p>
 <pre><code class="language-sh">mkdir hello &amp;&amp; cd hello
-curl -fsSLO https://raw.githubusercontent.com/Alibek10599/imanari/main/examples/hello/hello.nari
+curl -fsSLO https://raw.githubusercontent.com/Alibek10599/imanari/main/examples/hello/hello.nr
 nari check
 nari dev</code></pre>
-<p><code>nari check</code> validates the file offline and prints <code>ok: hello.nari is valid</code>. <code>nari dev</code> builds the app, starts it under a supervisor, and prints a line like this:</p>
+<p><code>nari check</code> validates the file offline and prints <code>ok: hello.nr is valid</code>. <code>nari dev</code> builds the app, starts it under a supervisor, and prints a line like this:</p>
 <pre><code>open: http://127.0.0.1:7332/#bootstrap=…</code></pre>
 <p>Open that URL. The page signs you in as User A, removes the one-time token from the address bar, and shows the form. Type a greeting and press Save. The bar at the top switches between User A and User B. Stop the app with Ctrl-C.</p>
 <p>The first build compiles the backend's dependencies in release mode and takes about a minute. Later builds are fast. To start from a larger example instead, run <code>nari init myapp</code>, which creates <code>myapp/</code> with a task-list app and its tests.</p>
 <p>These are the commands you will use while writing a program:</p>
 <div class="table"><table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody><tr><td><code>nari check</code></td><td>Parses and validates the file without building anything</td></tr><tr><td><code>nari fmt</code></td><td>Rewrites the file in the standard layout and keeps your comments; <code>--check</code> only reports</td></tr><tr><td><code>nari build</code></td><td>Writes <code>.nari/ir.json</code>, <code>.nari/graph.json</code>, the generated Rust and web files, and compiles them</td></tr><tr><td><code>nari dev</code></td><td>Builds, then runs the app under the supervisor and prints the sign-in URL</td></tr><tr><td><code>nari test</code></td><td>Runs the generated contract checks and your protected tests against a real build</td></tr><tr><td><code>nari status</code></td><td>Shows whether the app is running, its restart history and per-action request counts</td></tr></tbody></table></div>
 <p>Every command accepts <code>--project PATH</code> to work on another directory and <code>--json</code> for machine-readable output.</p>
-<figure class="playground side" data-scenario="hello" data-file="hello.nari">
+<figure class="playground side" data-scenario="hello" data-file="hello.nr">
 <figcaption><span class="pg-kicker">Playground</span><strong>Or run it right here</strong><span>This is the same program, compiled in your browser. Edit it on the left and the app on the right rebuilds.</span></figcaption>
 <ol class="pg-steps"><li>Type a greeting and press Save. Watch the request pass each check, then appear in the database.</li><li>Change <code>title = "Hello, world";</code> to something else. The page heading follows.</li><li>Change <code>fields = [text];</code> to <code>fields = [txt];</code>. The compiler names the line and the declaration, and the app keeps running the last good version.</li></ol>
-<div class="pg-source"><textarea readonly rows="90" aria-label="hello.nari source">imanari "0.1";
+<div class="pg-source"><textarea readonly rows="90" aria-label="hello.nr source">imanari "0.1";
 
 app hello {
   targets = [web];
@@ -368,10 +368,10 @@ app hello {
 <p>Every record has an owner, and every action runs as the signed-in user. The compiler adds the owner to each query it generates:</p>
 <ul><li>An insert writes the caller's id into the owner field. The browser never sends it.</li><li>A list returns only rows whose owner is the caller.</li><li>An update only matches a row whose owner is the caller. Someone else's record looks exactly like a record that does not exist, and the answer is <code>404 NOT_FOUND</code>.</li></ul>
 <p>You cannot write an action that skips the check, because there is no syntax for it. To see it, run the task app and add a task as User A, then switch to User B: the list is empty.</p>
-<figure class="playground" data-scenario="ownership" data-file="fieldwork.nari">
+<figure class="playground" data-scenario="ownership" data-file="fieldwork.nr">
 <figcaption><span class="pg-kicker">Playground</span><strong>Two users, one database</strong><span>The task app is open in two browsers, signed in as different users. The database table underneath shows every row.</span></figcaption>
 <ol class="pg-steps"><li>Add a task as User A. It is stored, but User B's list does not change.</li><li>Look at the <strong>Owner filter</strong> step of each list request: it counts the caller's rows out of all rows.</li><li>Switch the right-hand browser to User A with its <strong>Signed in as</strong> menu. Now it lists A's tasks.</li></ol>
-<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nari source">imanari "0.1";
+<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nr source">imanari "0.1";
 
 app fieldwork {
   targets = [web];
@@ -500,10 +500,10 @@ app fieldwork {
 <section aria-labelledby="revisions-and-conflicts"><div class="head"><h2 id="revisions-and-conflicts">Revisions and conflicts<a class="anchor" href="#revisions-and-conflicts" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
 <p>Two people, or two browser tabs, can load the same record and both try to change it. An update carries the revision its caller last saw. The backend changes the row only if that revision is still current, and then increments it.</p>
 <p>If the revision moved on, the request fails with <code>409 REVISION_CONFLICT</code> and nothing is written. The generated page tells the user the item changed and reloads the list. A later write never silently overwrites an earlier one.</p>
-<figure class="playground" data-scenario="revision" data-file="fieldwork.nari">
+<figure class="playground" data-scenario="revision" data-file="fieldwork.nr">
 <figcaption><span class="pg-kicker">Playground</span><strong>Two tabs, one task</strong><span>Both tabs belong to User A and loaded the task at revision 1.</span></figcaption>
 <ol class="pg-steps"><li>Press <strong>Mark complete</strong> in Tab 1. The row moves to revision 2.</li><li>Tab 2 has not reloaded and still holds revision 1. Press <strong>Mark complete</strong> there.</li><li>The request stops at the <strong>Revision</strong> check with <code>409 REVISION_CONFLICT</code>, and the tab reloads its list.</li></ol>
-<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nari source">imanari "0.1";
+<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nr source">imanari "0.1";
 
 app fieldwork {
   targets = [web];
@@ -633,10 +633,10 @@ app fieldwork {
 <p>A request can commit on the server and still fail to reach the browser: the connection drops, or the backend crashes after the commit. The client cannot tell whether the change happened.</p>
 <p>Every insert and update carries an <code>Idempotency-Key</code>. The backend stores the key and the response in the same transaction as the change. When the same user repeats the same action with the same key and the same input, the backend returns the stored response and writes nothing. The generated client keeps a request's key until it gets a definite answer, so pressing Save again after a network error cannot create a duplicate.</p>
 <p>Reusing a key with different input is a mistake, and gets <code>409 IDEMPOTENCY_CONFLICT</code>.</p>
-<figure class="playground" data-scenario="retry" data-file="fieldwork.nari">
+<figure class="playground" data-scenario="retry" data-file="fieldwork.nr">
 <figcaption><span class="pg-kicker">Playground</span><strong>A reply that never arrives</strong><span>The switch below makes the next change commit and then drops the response on its way back.</span></figcaption>
 <ol class="pg-steps"><li>Press <strong>Lose the next response</strong>, type a task and press Save.</li><li>The row is in the database, but the browser only knows the request failed.</li><li>Press Save again. The backend recognises the key, replays the stored answer and writes nothing: still one row.</li></ol>
-<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nari source">imanari "0.1";
+<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nr source">imanari "0.1";
 
 app fieldwork {
   targets = [web];
@@ -767,10 +767,10 @@ app fieldwork {
 <p>The budget is <code>max_restarts</code> within <code>window_seconds</code>. Once it is spent, the supervisor stops, records an incident and reports <code>StoppedNeedsAttention</code> instead of restarting forever. <code>nari status</code> shows the state, and <code>nari dev --acknowledge</code> clears it after you have looked at the cause.</p>
 <p>You can inject a crash to watch this happen:</p>
 <pre><code class="language-sh">NARI_FAULT=crash_on_request:create_task nari dev</code></pre>
-<figure class="playground" data-scenario="recovery" data-file="fieldwork.nari">
+<figure class="playground" data-scenario="recovery" data-file="fieldwork.nr">
 <figcaption><span class="pg-kicker">Playground</span><strong>Crash it and watch the budget</strong><span>This backend may restart 3 times in 60 seconds, waiting 100, 500 and then 2000 ms.</span></figcaption>
 <ol class="pg-steps"><li>Press <strong>Crash the backend</strong>. The supervisor waits, restarts it, and the tasks are still there.</li><li>Crash it three more times. The fourth crash finds the budget spent and the supervisor stops.</li><li>Edit <code>max_restarts</code> and <code>backoff_ms</code> in the program to change the policy. They must stay the same length.</li></ol>
-<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nari source">imanari "0.1";
+<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nr source">imanari "0.1";
 
 app fieldwork {
   targets = [web];
@@ -912,8 +912,8 @@ app fieldwork {
 </div></section>
 <section aria-labelledby="reading-errors"><div class="head"><h2 id="reading-errors">Reading errors<a class="anchor" href="#reading-errors" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
 <p>Diagnostics name the file, line and column, an error code, and the id of the declaration at fault:</p>
-<pre><code>hello.nari:37:14: error E_TYPE: input 'text' is Text but field 'owner' is UUID (no implicit casts) [hello/action/say]
-hello.nari:63:17: error E_UNRESOLVED: entity Greeting has no field 'txt' [hello/screen/home/list/said]</code></pre>
+<pre><code>hello.nr:37:14: error E_TYPE: input 'text' is Text but field 'owner' is UUID (no implicit casts) [hello/action/say]
+hello.nr:63:17: error E_UNRESOLVED: entity Greeting has no field 'txt' [hello/screen/home/list/said]</code></pre>
 <p>The first came from assigning <code>owner: @input.text</code>. The second came from a list that asked for a field the entity does not have. <code>nari check --json</code> gives the same information with byte spans for editors and agents.</p>
 <p>The id in brackets is stable. <code>hello/action/say</code> stays the same when lines move, and the same id names that action in <code>ir.json</code>, the dependency graph, test coverage and incident records.</p>
 </div></section>

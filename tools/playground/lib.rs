@@ -11,7 +11,7 @@ use std::sync::Mutex;
 
 static BUFFER: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 
-const FILE: &str = "app.nari";
+const FILE: &str = "app.nr";
 
 fn respond(run: impl FnOnce(&str) -> serde_json::Value) -> usize {
     let mut buffer = BUFFER.lock().expect("buffer lock");
