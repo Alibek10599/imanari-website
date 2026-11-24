@@ -139,7 +139,76 @@ def section_head(title, doc, refs, seen):
         head += f'<p class="downloads"><a href="{REPO}/releases/tag/v{version}">Downloads</a></p>'
     return ident, text(version), head
 
-def markdown(doc):
+PLAYGROUNDS = {
+    "run-it": (
+        "hello", "examples/hello/hello.nari", True,
+        "Or run it right here",
+        "This is the same program, compiled in your browser. Edit it on the left and the app on the right rebuilds.",
+        [
+            "Type a greeting and press Save. Watch the request pass each check, then appear in the database.",
+            "Change <code>title = \"Hello, world\";</code> to something else. The page heading follows.",
+            "Change <code>fields = [text];</code> to <code>fields = [txt];</code>. The compiler names the line and the declaration, and the app keeps running the last good version.",
+        ],
+    ),
+    "ownership": (
+        "ownership", "examples/fieldwork/fieldwork.nari", False,
+        "Two users, one database",
+        "The task app is open in two browsers, signed in as different users. The database table underneath shows every row.",
+        [
+            "Add a task as User A. It is stored, but User B's list does not change.",
+            "Look at the <strong>Owner filter</strong> step of each list request: it counts the caller's rows out of all rows.",
+            "Switch the right-hand browser to User A with its <strong>Signed in as</strong> menu. Now it lists A's tasks.",
+        ],
+    ),
+    "revisions-and-conflicts": (
+        "revision", "examples/fieldwork/fieldwork.nari", False,
+        "Two tabs, one task",
+        "Both tabs belong to User A and loaded the task at revision 1.",
+        [
+            "Press <strong>Mark complete</strong> in Tab 1. The row moves to revision 2.",
+            "Tab 2 has not reloaded and still holds revision 1. Press <strong>Mark complete</strong> there.",
+            "The request stops at the <strong>Revision</strong> check with <code>409 REVISION_CONFLICT</code>, and the tab reloads its list.",
+        ],
+    ),
+    "safe-retries": (
+        "retry", "examples/fieldwork/fieldwork.nari", False,
+        "A reply that never arrives",
+        "The switch below makes the next change commit and then drops the response on its way back.",
+        [
+            "Press <strong>Lose the next response</strong>, type a task and press Save.",
+            "The row is in the database, but the browser only knows the request failed.",
+            "Press Save again. The backend recognises the key, replays the stored answer and writes nothing: still one row.",
+        ],
+    ),
+    "crash-recovery": (
+        "recovery", "examples/fieldwork/fieldwork.nari", False,
+        "Crash it and watch the budget",
+        "This backend may restart 3 times in 60 seconds, waiting 100, 500 and then 2000 ms.",
+        [
+            "Press <strong>Crash the backend</strong>. The supervisor waits, restarts it, and the tasks are still there.",
+            "Crash it three more times. The fourth crash finds the budget spent and the supervisor stops.",
+            "Edit <code>max_restarts</code> and <code>backoff_ms</code> in the program to change the policy. They must stay the same length.",
+        ],
+    ),
+}
+
+def playground(ident):
+    scenario, path, split, title, lead, steps = PLAYGROUNDS[ident]
+    source = (repo / path).read_text()
+    name = posixpath.basename(path)
+    rows = source.count("\n") + 1
+    items = "".join(f"<li>{step}</li>" for step in steps)
+    cls = "playground side" if split else "playground"
+    return (
+        f'<figure class="{cls}" data-scenario="{scenario}" data-file="{name}">\n'
+        f'<figcaption><span class="pg-kicker">Playground</span><strong>{title}</strong><span>{lead}</span></figcaption>\n'
+        f'<ol class="pg-steps">{items}</ol>\n'
+        f'<div class="pg-source"><textarea readonly rows="{rows}" aria-label="{name} source">{text(source)}</textarea></div>\n'
+        f'<p class="pg-fallback">The playground needs JavaScript and WebAssembly. Without them, this is the program it runs.</p>\n'
+        "</figure>"
+    )
+
+def markdown(doc, extra=()):
     src = (repo / doc).read_text().rstrip("\n").split("\n")
     refs = {m.group(1).lower(): m.group(2) for m in map(REF.fullmatch, src) if m}
     sections, seen, i = [[None, None, None, []]], {}, 0
@@ -206,6 +275,12 @@ def markdown(doc):
             out.append(f"<p>{inline(' '.join(l.strip() for l in src[i:end]), doc, refs)}</p>")
             i = end
     kept = [s for s in sections[1:] if s[3]]
+    for section in kept:
+        if section[0] in extra:
+            section[3].append(playground(section[0]))
+    missing = set(extra) - {section[0] for section in kept}
+    if missing:
+        raise SystemExit(f"{doc}: no section for playground {sorted(missing)}")
     body = "\n".join(sections[0][3]) + "".join(
         f'\n<section aria-labelledby="{ident}"><div class="head">{head}</div><div class="body">\n' + "\n".join(blocks) + "\n</div></section>"
         for ident, _, head, blocks in kept
@@ -213,9 +288,9 @@ def markdown(doc):
     return [(ident, title) for ident, title, _, _ in kept], body
 
 def doc_main(doc, kind):
-    toc, body = markdown(doc)
+    toc, body = markdown(doc, PLAYGROUNDS if kind == "guide" else ())
     nav = ""
-    if kind == "spec":
+    if kind != "changelog":
         links = "".join(f'<li><a href="#{ident}">{title}</a></li>' for ident, title in toc)
         nav = f'<details class="toc" open><summary>Contents</summary><nav aria-label="Contents"><ul>{links}</ul></nav></details>\n'
     return f'<main class="doc {kind}">\n{nav}<article>\n{body}\n</article>\n</main>'
@@ -223,6 +298,8 @@ def doc_main(doc, kind):
 shell = (site / "tools/page.template.html").read_text().replace("{{REPO}}", REPO).replace("{{DL}}", DL)
 
 def write(name, title, description, main):
+    if 'class="playground' in main:
+        main += '\n<script src="play.js" defer></script>'
     page = shell.replace("{{TITLE}}", text(title)).replace("{{DESCRIPTION}}", text(description).replace('"', "&quot;"))
     page = page.replace(f'<a href="{name}">', f'<a href="{name}" aria-current="page">')
     (site / name).write_text(page.replace("{{MAIN}}", main))
@@ -241,9 +318,15 @@ write(
     doc_main("docs/spec.md", "spec"),
 )
 write(
+    "guide.html",
+    "The Imanari guide",
+    "Learn Imanari: write a hello-world app, run it, and try ownership, revision checks, safe retries and crash recovery in live playgrounds.",
+    doc_main("docs/guide.md", "guide"),
+)
+write(
     "changelog.html",
     "Imanari changelog",
     "Every notable change to Imanari, release by release.",
     doc_main("CHANGELOG.md", "changelog"),
 )
-print(f"wrote index.html, spec.html and changelog.html ({len(lines)} listing lines, {len(notes)} notes)")
+print(f"wrote index.html, guide.html, spec.html and changelog.html ({len(lines)} listing lines, {len(notes)} notes)")

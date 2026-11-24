@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Imanari guide</title>
+<meta name="description" content="Learn Imanari: write a hello-world app, run it, and try ownership, revision checks, safe retries and crash recovery in live playgrounds.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fragment+Mono&family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap">
+<link rel="stylesheet" href="style.css">
+<script src="site.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <a class="wordmark" href="./" aria-label="Imanari home">imanari<span class="belt" aria-hidden="true"></span></a>
+  <nav aria-label="Primary">
+    <a href="guide.html" aria-current="page">Guide</a>
+    <a href="spec.html">Spec</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="https://github.com/Alibek10599/imanari">GitHub</a>
+  </nav>
+</header>
+
+<main class="doc guide">
+<details class="toc" open><summary>Contents</summary><nav aria-label="Contents"><ul><li><a href="#what-a-program-is">What a program is</a></li><li><a href="#install">Install</a></li><li><a href="#hello-world">Hello, world</a></li><li><a href="#run-it">Run it</a></li><li><a href="#syntax">Syntax</a></li><li><a href="#entities-and-fields">Entities and fields</a></li><li><a href="#actions">Actions</a></li><li><a href="#screens">Screens</a></li><li><a href="#policy-blocks">Policy blocks</a></li><li><a href="#ownership">Ownership</a></li><li><a href="#revisions-and-conflicts">Revisions and conflicts</a></li><li><a href="#safe-retries">Safe retries</a></li><li><a href="#crash-recovery">Crash recovery</a></li><li><a href="#testing">Testing</a></li><li><a href="#reading-errors">Reading errors</a></li><li><a href="#changing-a-program">Changing a program</a></li><li><a href="#what-01-leaves-out">What 0.1 leaves out</a></li></ul></nav></details>
+<article>
+<h1 id="the-imanari-guide">The Imanari guide</h1>
+<p>This guide teaches you to write an Imanari program and run it. It starts with the smallest complete app, explains every part of the language, and then walks through what the runtime does for you: ownership, revision checks, safe retries and crash recovery.</p>
+<p>The <a href="https://alibek10599.github.io/imanari-website/guide.html">web version of this guide</a> has a playground under each example. You can edit the program there and use the app it describes without installing anything. <a href="https://github.com/Alibek10599/imanari/blob/main/docs/spec.md">spec.md</a> is the normative reference when you need the exact rule.</p>
+<section aria-labelledby="what-a-program-is"><div class="head"><h2 id="what-a-program-is">What a program is<a class="anchor" href="#what-a-program-is" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>An Imanari program is one <code>.nari</code> file that declares a whole app. You do not write handlers, SQL or page templates. You declare:</p>
+<ul><li><strong>Entities</strong>: the records the app stores, and which field names their owner.</li><li><strong>Actions</strong>: the only operations that touch those records. An action inserts a record, lists records, or updates one.</li><li><strong>Screens</strong>: pages made of forms, lists and buttons, each bound to an action.</li><li><strong>Policy</strong>: who signs in, the request limits, how often a crashed backend may restart, and what an automated repair may change.</li></ul>
+<p>The compiler checks the file and turns it into a native Rust backend, a browser UI, a typed description of the app (<code>ir.json</code>) and a dependency graph.</p>
+<p>Imanari has no functions, loops or expressions in 0.1. Every program is a set of declarations, and the three action kinds are the whole executable vocabulary. That is deliberate: the compiler can prove what each action reads and writes, so it can generate the access checks instead of trusting you to remember them.</p>
+</div></section>
+<section aria-labelledby="install"><div class="head"><h2 id="install">Install<a class="anchor" href="#install" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>Imanari compiles apps with Cargo, so install Rust with <a href="https://rustup.rs">rustup</a> first. Then install the <code>nari</code> command. On macOS with Apple silicon:</p>
+<pre><code class="language-sh">curl -fsSL https://github.com/Alibek10599/imanari/releases/latest/download/imanari-aarch64-apple-darwin.tar.gz | tar -xz
+sudo install imanari-aarch64-apple-darwin/nari /usr/local/bin/nari</code></pre>
+<p>On Linux, use the <code>imanari-x86_64-unknown-linux-gnu</code> or <code>imanari-aarch64-unknown-linux-gnu</code> archive the same way. To build from source instead:</p>
+<pre><code class="language-sh">cargo install --locked --git https://github.com/Alibek10599/imanari imanari</code></pre>
+<p>Check that it works:</p>
+<pre><code class="language-sh">nari --version</code></pre>
+</div></section>
+<section aria-labelledby="hello-world"><div class="head"><h2 id="hello-world">Hello, world<a class="anchor" href="#hello-world" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>Imanari has no <code>print</code>. The smallest useful program is an app that stores a line of text for the signed-in user and shows it back. This is <a href="https://github.com/Alibek10599/imanari/blob/main/examples/hello/hello.nari">examples/hello/hello.nari</a>:</p>
+<pre><code class="language-nari">imanari "0.1";
+
+app hello {
+  targets = [web];
+
+  identity development {
+    mode = local_dev;
+  }
+
+  entity Greeting {
+    owner_field = owner;
+
+    field text {
+      type = Text;
+      min_length = 1;
+      max_length = 80;
+    }
+
+    field owner {
+      type = UUID;
+    }
+  }
+
+  action say {
+    kind = insert;
+    entity = Greeting;
+    access = signed_in;
+
+    input text {
+      type = Text;
+      min_length = 1;
+      max_length = 80;
+    }
+
+    set = {
+      text: @input.text,
+      owner: @actor.id,
+    };
+  }
+
+  action greetings {
+    kind = list;
+    entity = Greeting;
+    access = signed_in;
+  }
+
+  screen home {
+    route = "/";
+    title = "Hello, world";
+    query = greetings;
+
+    form say_hello {
+      submit = say;
+
+      input text {
+        label = "Say something";
+        placeholder = "Hello, world";
+      }
+    }
+
+    list said {
+      source = @query.items;
+      fields = [text];
+    }
+  }
+
+  runtime local {
+    bind = "127.0.0.1";
+    port = 7332;
+    database = ".nari/app.db";
+    request_limit_bytes = 65536;
+    request_timeout_ms = 5000;
+  }
+
+  recovery backend_process {
+    target = backend;
+    max_restarts = 3;
+    window_seconds = 60;
+    backoff_ms = [100, 500, 2000];
+    after_exhaustion = stop;
+  }
+
+  repair local_candidate {
+    mode = isolated;
+    max_attempts = 0;
+    editable_actions = [];
+    automatic_release = false;
+  }
+}</code></pre>
+<p>Read it top to bottom:</p>
+<ol><li><code>imanari "0.1";</code> names the language version. Every file starts with it.</li><li><code>app hello { … }</code> holds everything else. <code>targets = [web];</code> is the only target in 0.1.</li><li><code>identity</code> says how people sign in. <code>local_dev</code> gives you two seeded users on your own machine.</li><li><code>entity Greeting</code> is the stored record. It has a <code>text</code> and an <code>owner</code>.</li><li><code>action say</code> inserts a greeting. The text comes from the request and the owner comes from the session.</li><li><code>action greetings</code> lists the signed-in user's greetings.</li><li><code>screen home</code> is the page: a form that calls <code>say</code>, and a list fed by <code>greetings</code>.</li><li><code>runtime</code>, <code>recovery</code> and <code>repair</code> are required policy blocks. They are explained under <a href="#policy-blocks">Policy blocks</a>.</li></ol>
+</div></section>
+<section aria-labelledby="run-it"><div class="head"><h2 id="run-it">Run it<a class="anchor" href="#run-it" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>Put the program in a directory of its own. A project is a directory with exactly one <code>.nari</code> file.</p>
+<pre><code class="language-sh">mkdir hello &amp;&amp; cd hello
+curl -fsSLO https://raw.githubusercontent.com/Alibek10599/imanari/main/examples/hello/hello.nari
+nari check
+nari dev</code></pre>
+<p><code>nari check</code> validates the file offline and prints <code>ok: hello.nari is valid</code>. <code>nari dev</code> builds the app, starts it under a supervisor, and prints a line like this:</p>
+<pre><code>open: http://127.0.0.1:7332/#bootstrap=…</code></pre>
+<p>Open that URL. The page signs you in as User A, removes the one-time token from the address bar, and shows the form. Type a greeting and press Save. The bar at the top switches between User A and User B. Stop the app with Ctrl-C.</p>
+<p>The first build compiles the backend's dependencies in release mode and takes about a minute. Later builds are fast. To start from a larger example instead, run <code>nari init myapp</code>, which creates <code>myapp/</code> with a task-list app and its tests.</p>
+<p>These are the commands you will use while writing a program:</p>
+<div class="table"><table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody><tr><td><code>nari check</code></td><td>Parses and validates the file without building anything</td></tr><tr><td><code>nari fmt</code></td><td>Rewrites the file in the standard layout and keeps your comments; <code>--check</code> only reports</td></tr><tr><td><code>nari build</code></td><td>Writes <code>.nari/ir.json</code>, <code>.nari/graph.json</code>, the generated Rust and web files, and compiles them</td></tr><tr><td><code>nari dev</code></td><td>Builds, then runs the app under the supervisor and prints the sign-in URL</td></tr><tr><td><code>nari test</code></td><td>Runs the generated contract checks and your protected tests against a real build</td></tr><tr><td><code>nari status</code></td><td>Shows whether the app is running, its restart history and per-action request counts</td></tr></tbody></table></div>
+<p>Every command accepts <code>--project PATH</code> to work on another directory and <code>--json</code> for machine-readable output.</p>
+<figure class="playground side" data-scenario="hello" data-file="hello.nari">
+<figcaption><span class="pg-kicker">Playground</span><strong>Or run it right here</strong><span>This is the same program, compiled in your browser. Edit it on the left and the app on the right rebuilds.</span></figcaption>
+<ol class="pg-steps"><li>Type a greeting and press Save. Watch the request pass each check, then appear in the database.</li><li>Change <code>title = "Hello, world";</code> to something else. The page heading follows.</li><li>Change <code>fields = [text];</code> to <code>fields = [txt];</code>. The compiler names the line and the declaration, and the app keeps running the last good version.</li></ol>
+<div class="pg-source"><textarea readonly rows="90" aria-label="hello.nari source">imanari "0.1";
+
+app hello {
+  targets = [web];
+
+  identity development {
+    mode = local_dev;
+  }
+
+  entity Greeting {
+    owner_field = owner;
+
+    field text {
+      type = Text;
+      min_length = 1;
+      max_length = 80;
+    }
+
+    field owner {
+      type = UUID;
+    }
+  }
+
+  action say {
+    kind = insert;
+    entity = Greeting;
+    access = signed_in;
+
+    input text {
+      type = Text;
+      min_length = 1;
+      max_length = 80;
+    }
+
+    set = {
+      text: @input.text,
+      owner: @actor.id,
+    };
+  }
+
+  action greetings {
+    kind = list;
+    entity = Greeting;
+    access = signed_in;
+  }
+
+  screen home {
+    route = "/";
+    title = "Hello, world";
+    query = greetings;
+
+    form say_hello {
+      submit = say;
+
+      input text {
+        label = "Say something";
+        placeholder = "Hello, world";
+      }
+    }
+
+    list said {
+      source = @query.items;
+      fields = [text];
+    }
+  }
+
+  runtime local {
+    bind = "127.0.0.1";
+    port = 7332;
+    database = ".nari/app.db";
+    request_limit_bytes = 65536;
+    request_timeout_ms = 5000;
+  }
+
+  recovery backend_process {
+    target = backend;
+    max_restarts = 3;
+    window_seconds = 60;
+    backoff_ms = [100, 500, 2000];
+    after_exhaustion = stop;
+  }
+
+  repair local_candidate {
+    mode = isolated;
+    max_attempts = 0;
+    editable_actions = [];
+    automatic_release = false;
+  }
+}
+</textarea></div>
+<p class="pg-fallback">The playground needs JavaScript and WebAssembly. Without them, this is the program it runs.</p>
+</figure>
+</div></section>
+<section aria-labelledby="syntax"><div class="head"><h2 id="syntax">Syntax<a class="anchor" href="#syntax" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>The whole grammar is small enough to remember.</p>
+<ul><li>A <strong>property</strong> is <code>name = value;</code>.</li><li>A <strong>block</strong> is <code>kind name { … }</code> and contains properties and other blocks.</li><li>A <strong>comment</strong> starts with <code>//</code> and runs to the end of the line.</li></ul>
+<p>Values are one of these:</p>
+<div class="table"><table><thead><tr><th>Value</th><th>Example</th><th>Notes</th></tr></thead><tbody><tr><td>String</td><td><code>"My tasks"</code></td><td>JSON escaping; no interpolation</td></tr><tr><td>Integer</td><td><code>200</code></td><td>Whole numbers only</td></tr><tr><td>Boolean</td><td><code>true</code>, <code>false</code></td><td></td></tr><tr><td>Symbol</td><td><code>Text</code>, <code>insert</code>, <code>Task</code></td><td>A bare name: a type, a keyword value, or something you declared</td></tr><tr><td>Reference</td><td><code>@input.title</code></td><td>Points at a value the runtime supplies</td></tr><tr><td>Array</td><td><code>[title, completed]</code></td><td>A trailing comma is allowed</td></tr><tr><td>Object</td><td><code>{ completed: true }</code></td><td>A trailing comma is allowed</td></tr></tbody></table></div>
+<p>Names use ASCII letters, digits and underscores, and cannot start with a digit. A name must be unique among its siblings of the same kind. Unknown properties, unknown blocks and duplicate keys are errors, so a typo never silently does nothing.</p>
+<p>There are four references, and each is valid in one place only:</p>
+<div class="table"><table><thead><tr><th>Reference</th><th>Valid in</th><th>Meaning</th></tr></thead><tbody><tr><td><code>@input.NAME</code></td><td>An action's <code>set</code>, <code>id</code> and <code>expected_revision</code></td><td>A declared input of that action</td></tr><tr><td><code>@actor.id</code></td><td>An insert action's <code>set</code>, for the owner field</td><td>The signed-in user's id, taken from the session</td></tr><tr><td><code>@query.items</code></td><td>A list's <code>source</code></td><td>The records returned by the screen's query</td></tr><tr><td><code>@item.FIELD</code></td><td>A button's <code>arguments</code></td><td>A field of the record the button sits next to</td></tr></tbody></table></div>
+</div></section>
+<section aria-labelledby="entities-and-fields"><div class="head"><h2 id="entities-and-fields">Entities and fields<a class="anchor" href="#entities-and-fields" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>An entity is a kind of record. Each <code>field</code> block declares one stored value.</p>
+<pre><code class="language-nari">entity Task {
+  owner_field = owner;
+
+  field title {
+    type = Text;
+    min_length = 1;
+    max_length = 200;
+  }
+
+  field owner {
+    type = UUID;
+  }
+
+  field completed {
+    type = Bool;
+    default = false;
+  }
+}</code></pre>
+<p>There are four types:</p>
+<div class="table"><table><thead><tr><th>Type</th><th>Holds</th><th>Options</th></tr></thead><tbody><tr><td><code>Text</code></td><td>A string</td><td><code>min_length</code> and <code>max_length</code>, counted in characters; the defaults are 0 and 4096</td></tr><tr><td><code>Int</code></td><td>A whole number</td><td>Limited to ±9,007,199,254,740,991 so every value is exact in a browser</td></tr><tr><td><code>Bool</code></td><td><code>true</code> or <code>false</code></td><td></td></tr><tr><td><code>UUID</code></td><td>A lowercase UUID</td><td></td></tr></tbody></table></div>
+<p>There are no nullable values, floats or implicit casts. A field may have a <code>default</code>, which must fit the field's type and bounds.</p>
+<p>Every entity also has two fields you do not declare and cannot assign: <code>id</code>, a UUID the runtime generates, and <code>revision</code>, an integer that starts at 1 and goes up by one on every update.</p>
+<p><code>owner_field</code> names the UUID field that says whose record it is. It is required. Every generated query filters on it, which is how <a href="#ownership">ownership</a> works.</p>
+</div></section>
+<section aria-labelledby="actions"><div class="head"><h2 id="actions">Actions<a class="anchor" href="#actions" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>An action is a named operation on one entity. Every action has <code>kind</code>, <code>entity</code> and <code>access = signed_in</code>. Mutating actions declare their inputs with <code>input</code> blocks, which take the same <code>type</code> and bounds as fields. All inputs are required, and a request with an unknown input field is rejected.</p>
+<div class="table"><table><thead><tr><th>Kind</th><th>You write</th><th>What it does</th></tr></thead><tbody><tr><td><code>insert</code></td><td><code>set</code></td><td>Creates one record owned by the caller and returns it</td></tr><tr><td><code>list</code></td><td>nothing more</td><td>Returns the caller's records, 50 per page by default</td></tr><tr><td><code>update</code></td><td><code>id</code>, <code>expected_revision</code>, <code>set</code></td><td>Changes one of the caller's records if its revision still matches, and returns it</td></tr></tbody></table></div>
+<p>An insert assigns every field that has no default. The owner field must be assigned <code>@actor.id</code>; anything else is a compile error.</p>
+<pre><code class="language-nari">action create_task {
+  kind = insert;
+  entity = Task;
+  access = signed_in;
+
+  input title {
+    type = Text;
+    min_length = 1;
+    max_length = 200;
+  }
+
+  set = {
+    title: @input.title,
+    owner: @actor.id,
+  };
+}</code></pre>
+<p>An update names the record with <code>id</code> and the revision the caller last saw with <code>expected_revision</code>. Its <code>set</code> may use inputs or literal values. It cannot assign the owner, the id or the revision.</p>
+<pre><code class="language-nari">action complete_task {
+  kind = update;
+  entity = Task;
+  access = signed_in;
+
+  input id {
+    type = UUID;
+  }
+
+  input revision {
+    type = Int;
+  }
+
+  id = @input.id;
+  expected_revision = @input.revision;
+  set = { completed: true };
+}</code></pre>
+<p>A list action takes no inputs of its own. The transport adds <code>limit</code> (1 to 100) and <code>after</code> (a cursor) for pagination.</p>
+<p>Each action becomes one HTTP endpoint, <code>POST /api/actions/NAME</code>, with a JSON object as the body. Inserts and updates also require an <code>Idempotency-Key</code> header, which is what makes <a href="#safe-retries">retries safe</a>. The generated browser client sends all of this for you.</p>
+</div></section>
+<section aria-labelledby="screens"><div class="head"><h2 id="screens">Screens<a class="anchor" href="#screens" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>A screen is one page. It has a <code>route</code>, a <code>title</code>, and a <code>query</code> that names a list action.</p>
+<pre><code class="language-nari">screen tasks {
+  route = "/";
+  title = "My tasks";
+  query = list_tasks;
+
+  form add_task {
+    submit = create_task;
+
+    input title {
+      label = "Task title";
+      placeholder = "What needs doing?";
+    }
+  }
+
+  list task_list {
+    source = @query.items;
+    fields = [title, completed];
+
+    button complete {
+      label = "Mark complete";
+      action = complete_task;
+      arguments = {
+        id: @item.id,
+        revision: @item.revision,
+      };
+    }
+  }
+}</code></pre>
+<ul><li>A <strong>form</strong> submits to an insert action. Its <code>input</code> blocks match the action's inputs by name and add a <code>label</code> and an optional <code>placeholder</code>. The control type, the required mark and the length limits come from the action.</li><li>A <strong>list</strong> shows the query's records. <code>fields</code> picks the columns.</li><li>A <strong>button</strong> inside a list calls an update action for that row. <code>arguments</code> must bind every input of the action, either to <code>@item.FIELD</code> or to a literal.</li></ul>
+<p>The generated page uses native browser controls. It shows loading, empty and error states, blocks double submission, keeps your input when a request fails, and reloads the list after a change. Record content is always rendered as text, never as HTML.</p>
+</div></section>
+<section aria-labelledby="policy-blocks"><div class="head"><h2 id="policy-blocks">Policy blocks<a class="anchor" href="#policy-blocks" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>Every app has exactly one of each of these four blocks.</p>
+<p><code>identity</code> chooses how users sign in. <code>mode = local_dev</code> is for development on your own machine. <code>mode = oidc</code> with an <code>issuer</code> and a <code>client_id</code> signs users in through an OpenID Connect provider.</p>
+<p><code>runtime</code> holds the limits the backend enforces on every request:</p>
+<div class="table"><table><thead><tr><th>Property</th><th>Allowed</th><th>Meaning</th></tr></thead><tbody><tr><td><code>bind</code></td><td><code>"127.0.0.1"</code></td><td>The listen address; deployments override it from outside</td></tr><tr><td><code>port</code></td><td>1024 to 65535</td><td>The listen port</td></tr><tr><td><code>database</code></td><td>A path under <code>.nari/</code></td><td>The SQLite file</td></tr><tr><td><code>request_limit_bytes</code></td><td>1 to 65536</td><td>Largest accepted request body</td></tr><tr><td><code>request_timeout_ms</code></td><td>100 to 30000</td><td>How long one request may run</td></tr></tbody></table></div>
+<p><code>recovery</code> is the restart budget for a crashed backend. <code>backoff_ms</code> needs one entry per allowed restart. <a href="#crash-recovery">Crash recovery</a> shows it working.</p>
+<p><code>repair</code> limits what an automated fix may touch. <code>editable_actions</code> lists the actions whose <code>set</code> bindings a repair may change. <code>max_attempts = 0</code> with an empty list, as in the hello program, switches repair off. <code>automatic_release</code> must be <code>false</code>: a validated fix is only applied when you run <code>nari apply-repair</code>.</p>
+</div></section>
+<section aria-labelledby="ownership"><div class="head"><h2 id="ownership">Ownership<a class="anchor" href="#ownership" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>Every record has an owner, and every action runs as the signed-in user. The compiler adds the owner to each query it generates:</p>
+<ul><li>An insert writes the caller's id into the owner field. The browser never sends it.</li><li>A list returns only rows whose owner is the caller.</li><li>An update only matches a row whose owner is the caller. Someone else's record looks exactly like a record that does not exist, and the answer is <code>404 NOT_FOUND</code>.</li></ul>
+<p>You cannot write an action that skips the check, because there is no syntax for it. To see it, run the task app and add a task as User A, then switch to User B: the list is empty.</p>
+<figure class="playground" data-scenario="ownership" data-file="fieldwork.nari">
+<figcaption><span class="pg-kicker">Playground</span><strong>Two users, one database</strong><span>The task app is open in two browsers, signed in as different users. The database table underneath shows every row.</span></figcaption>
+<ol class="pg-steps"><li>Add a task as User A. It is stored, but User B's list does not change.</li><li>Look at the <strong>Owner filter</strong> step of each list request: it counts the caller's rows out of all rows.</li><li>Switch the right-hand browser to User A with its <strong>Signed in as</strong> menu. Now it lists A's tasks.</li></ol>
+<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nari source">imanari "0.1";
+
+app fieldwork {
+  targets = [web];
+
+  identity development {
+    mode = local_dev;
+  }
+
+  entity Task {
+    owner_field = owner;
+
+    // id and revision are supplied by the runtime.
+    field title {
+      type = Text;
+      min_length = 1;
+      max_length = 200;
+    }
+
+    field owner {
+      type = UUID;
+    }
+
+    field completed {
+      type = Bool;
+      default = false;
+    }
+  }
+
+  action create_task {
+    kind = insert;
+    entity = Task;
+    access = signed_in;
+
+    input title {
+      type = Text;
+      min_length = 1;
+      max_length = 200;
+    }
+
+    set = {
+      title: @input.title,
+      owner: @actor.id,
+    };
+  }
+
+  action list_tasks {
+    kind = list;
+    entity = Task;
+    access = signed_in;
+  }
+
+  action complete_task {
+    kind = update;
+    entity = Task;
+    access = signed_in;
+
+    input id {
+      type = UUID;
+    }
+
+    input revision {
+      type = Int;
+    }
+
+    id = @input.id;
+    expected_revision = @input.revision;
+    set = { completed: true };
+  }
+
+  screen tasks {
+    route = "/";
+    title = "My tasks";
+    query = list_tasks;
+
+    form add_task {
+      submit = create_task;
+
+      input title {
+        label = "Task title";
+        placeholder = "What needs doing?";
+      }
+    }
+
+    list task_list {
+      source = @query.items;
+      fields = [title, completed];
+
+      button complete {
+        label = "Mark complete";
+        action = complete_task;
+        arguments = {
+          id: @item.id,
+          revision: @item.revision,
+        };
+      }
+    }
+  }
+
+  runtime local {
+    bind = "127.0.0.1";
+    port = 7331;
+    database = ".nari/app.db";
+    request_limit_bytes = 65536;
+    request_timeout_ms = 5000;
+  }
+
+  recovery backend_process {
+    target = backend;
+    max_restarts = 3;
+    window_seconds = 60;
+    backoff_ms = [100, 500, 2000];
+    after_exhaustion = stop;
+  }
+
+  repair local_candidate {
+    mode = isolated;
+    max_attempts = 2;
+    editable_actions = [complete_task];
+    automatic_release = false;
+  }
+}
+</textarea></div>
+<p class="pg-fallback">The playground needs JavaScript and WebAssembly. Without them, this is the program it runs.</p>
+</figure>
+</div></section>
+<section aria-labelledby="revisions-and-conflicts"><div class="head"><h2 id="revisions-and-conflicts">Revisions and conflicts<a class="anchor" href="#revisions-and-conflicts" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>Two people, or two browser tabs, can load the same record and both try to change it. An update carries the revision its caller last saw. The backend changes the row only if that revision is still current, and then increments it.</p>
+<p>If the revision moved on, the request fails with <code>409 REVISION_CONFLICT</code> and nothing is written. The generated page tells the user the item changed and reloads the list. A later write never silently overwrites an earlier one.</p>
+<figure class="playground" data-scenario="revision" data-file="fieldwork.nari">
+<figcaption><span class="pg-kicker">Playground</span><strong>Two tabs, one task</strong><span>Both tabs belong to User A and loaded the task at revision 1.</span></figcaption>
+<ol class="pg-steps"><li>Press <strong>Mark complete</strong> in Tab 1. The row moves to revision 2.</li><li>Tab 2 has not reloaded and still holds revision 1. Press <strong>Mark complete</strong> there.</li><li>The request stops at the <strong>Revision</strong> check with <code>409 REVISION_CONFLICT</code>, and the tab reloads its list.</li></ol>
+<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nari source">imanari "0.1";
+
+app fieldwork {
+  targets = [web];
+
+  identity development {
+    mode = local_dev;
+  }
+
+  entity Task {
+    owner_field = owner;
+
+    // id and revision are supplied by the runtime.
+    field title {
+      type = Text;
+      min_length = 1;
+      max_length = 200;
+    }
+
+    field owner {
+      type = UUID;
+    }
+
+    field completed {
+      type = Bool;
+      default = false;
+    }
+  }
+
+  action create_task {
+    kind = insert;
+    entity = Task;
+    access = signed_in;
+
+    input title {
+      type = Text;
+      min_length = 1;
+      max_length = 200;
+    }
+
+    set = {
+      title: @input.title,
+      owner: @actor.id,
+    };
+  }
+
+  action list_tasks {
+    kind = list;
+    entity = Task;
+    access = signed_in;
+  }
+
+  action complete_task {
+    kind = update;
+    entity = Task;
+    access = signed_in;
+
+    input id {
+      type = UUID;
+    }
+
+    input revision {
+      type = Int;
+    }
+
+    id = @input.id;
+    expected_revision = @input.revision;
+    set = { completed: true };
+  }
+
+  screen tasks {
+    route = "/";
+    title = "My tasks";
+    query = list_tasks;
+
+    form add_task {
+      submit = create_task;
+
+      input title {
+        label = "Task title";
+        placeholder = "What needs doing?";
+      }
+    }
+
+    list task_list {
+      source = @query.items;
+      fields = [title, completed];
+
+      button complete {
+        label = "Mark complete";
+        action = complete_task;
+        arguments = {
+          id: @item.id,
+          revision: @item.revision,
+        };
+      }
+    }
+  }
+
+  runtime local {
+    bind = "127.0.0.1";
+    port = 7331;
+    database = ".nari/app.db";
+    request_limit_bytes = 65536;
+    request_timeout_ms = 5000;
+  }
+
+  recovery backend_process {
+    target = backend;
+    max_restarts = 3;
+    window_seconds = 60;
+    backoff_ms = [100, 500, 2000];
+    after_exhaustion = stop;
+  }
+
+  repair local_candidate {
+    mode = isolated;
+    max_attempts = 2;
+    editable_actions = [complete_task];
+    automatic_release = false;
+  }
+}
+</textarea></div>
+<p class="pg-fallback">The playground needs JavaScript and WebAssembly. Without them, this is the program it runs.</p>
+</figure>
+</div></section>
+<section aria-labelledby="safe-retries"><div class="head"><h2 id="safe-retries">Safe retries<a class="anchor" href="#safe-retries" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>A request can commit on the server and still fail to reach the browser: the connection drops, or the backend crashes after the commit. The client cannot tell whether the change happened.</p>
+<p>Every insert and update carries an <code>Idempotency-Key</code>. The backend stores the key and the response in the same transaction as the change. When the same user repeats the same action with the same key and the same input, the backend returns the stored response and writes nothing. The generated client keeps a request's key until it gets a definite answer, so pressing Save again after a network error cannot create a duplicate.</p>
+<p>Reusing a key with different input is a mistake, and gets <code>409 IDEMPOTENCY_CONFLICT</code>.</p>
+<figure class="playground" data-scenario="retry" data-file="fieldwork.nari">
+<figcaption><span class="pg-kicker">Playground</span><strong>A reply that never arrives</strong><span>The switch below makes the next change commit and then drops the response on its way back.</span></figcaption>
+<ol class="pg-steps"><li>Press <strong>Lose the next response</strong>, type a task and press Save.</li><li>The row is in the database, but the browser only knows the request failed.</li><li>Press Save again. The backend recognises the key, replays the stored answer and writes nothing: still one row.</li></ol>
+<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nari source">imanari "0.1";
+
+app fieldwork {
+  targets = [web];
+
+  identity development {
+    mode = local_dev;
+  }
+
+  entity Task {
+    owner_field = owner;
+
+    // id and revision are supplied by the runtime.
+    field title {
+      type = Text;
+      min_length = 1;
+      max_length = 200;
+    }
+
+    field owner {
+      type = UUID;
+    }
+
+    field completed {
+      type = Bool;
+      default = false;
+    }
+  }
+
+  action create_task {
+    kind = insert;
+    entity = Task;
+    access = signed_in;
+
+    input title {
+      type = Text;
+      min_length = 1;
+      max_length = 200;
+    }
+
+    set = {
+      title: @input.title,
+      owner: @actor.id,
+    };
+  }
+
+  action list_tasks {
+    kind = list;
+    entity = Task;
+    access = signed_in;
+  }
+
+  action complete_task {
+    kind = update;
+    entity = Task;
+    access = signed_in;
+
+    input id {
+      type = UUID;
+    }
+
+    input revision {
+      type = Int;
+    }
+
+    id = @input.id;
+    expected_revision = @input.revision;
+    set = { completed: true };
+  }
+
+  screen tasks {
+    route = "/";
+    title = "My tasks";
+    query = list_tasks;
+
+    form add_task {
+      submit = create_task;
+
+      input title {
+        label = "Task title";
+        placeholder = "What needs doing?";
+      }
+    }
+
+    list task_list {
+      source = @query.items;
+      fields = [title, completed];
+
+      button complete {
+        label = "Mark complete";
+        action = complete_task;
+        arguments = {
+          id: @item.id,
+          revision: @item.revision,
+        };
+      }
+    }
+  }
+
+  runtime local {
+    bind = "127.0.0.1";
+    port = 7331;
+    database = ".nari/app.db";
+    request_limit_bytes = 65536;
+    request_timeout_ms = 5000;
+  }
+
+  recovery backend_process {
+    target = backend;
+    max_restarts = 3;
+    window_seconds = 60;
+    backoff_ms = [100, 500, 2000];
+    after_exhaustion = stop;
+  }
+
+  repair local_candidate {
+    mode = isolated;
+    max_attempts = 2;
+    editable_actions = [complete_task];
+    automatic_release = false;
+  }
+}
+</textarea></div>
+<p class="pg-fallback">The playground needs JavaScript and WebAssembly. Without them, this is the program it runs.</p>
+</figure>
+</div></section>
+<section aria-labelledby="crash-recovery"><div class="head"><h2 id="crash-recovery">Crash recovery<a class="anchor" href="#crash-recovery" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p><code>nari dev</code> runs the backend as a child of a separate supervisor process. When the backend crashes, the supervisor waits for the next delay in <code>backoff_ms</code> and starts it again. Committed data is in the database, so it is still there after the restart.</p>
+<p>The budget is <code>max_restarts</code> within <code>window_seconds</code>. Once it is spent, the supervisor stops, records an incident and reports <code>StoppedNeedsAttention</code> instead of restarting forever. <code>nari status</code> shows the state, and <code>nari dev --acknowledge</code> clears it after you have looked at the cause.</p>
+<p>You can inject a crash to watch this happen:</p>
+<pre><code class="language-sh">NARI_FAULT=crash_on_request:create_task nari dev</code></pre>
+<figure class="playground" data-scenario="recovery" data-file="fieldwork.nari">
+<figcaption><span class="pg-kicker">Playground</span><strong>Crash it and watch the budget</strong><span>This backend may restart 3 times in 60 seconds, waiting 100, 500 and then 2000 ms.</span></figcaption>
+<ol class="pg-steps"><li>Press <strong>Crash the backend</strong>. The supervisor waits, restarts it, and the tasks are still there.</li><li>Crash it three more times. The fourth crash finds the budget spent and the supervisor stops.</li><li>Edit <code>max_restarts</code> and <code>backoff_ms</code> in the program to change the policy. They must stay the same length.</li></ol>
+<div class="pg-source"><textarea readonly rows="123" aria-label="fieldwork.nari source">imanari "0.1";
+
+app fieldwork {
+  targets = [web];
+
+  identity development {
+    mode = local_dev;
+  }
+
+  entity Task {
+    owner_field = owner;
+
+    // id and revision are supplied by the runtime.
+    field title {
+      type = Text;
+      min_length = 1;
+      max_length = 200;
+    }
+
+    field owner {
+      type = UUID;
+    }
+
+    field completed {
+      type = Bool;
+      default = false;
+    }
+  }
+
+  action create_task {
+    kind = insert;
+    entity = Task;
+    access = signed_in;
+
+    input title {
+      type = Text;
+      min_length = 1;
+      max_length = 200;
+    }
+
+    set = {
+      title: @input.title,
+      owner: @actor.id,
+    };
+  }
+
+  action list_tasks {
+    kind = list;
+    entity = Task;
+    access = signed_in;
+  }
+
+  action complete_task {
+    kind = update;
+    entity = Task;
+    access = signed_in;
+
+    input id {
+      type = UUID;
+    }
+
+    input revision {
+      type = Int;
+    }
+
+    id = @input.id;
+    expected_revision = @input.revision;
+    set = { completed: true };
+  }
+
+  screen tasks {
+    route = "/";
+    title = "My tasks";
+    query = list_tasks;
+
+    form add_task {
+      submit = create_task;
+
+      input title {
+        label = "Task title";
+        placeholder = "What needs doing?";
+      }
+    }
+
+    list task_list {
+      source = @query.items;
+      fields = [title, completed];
+
+      button complete {
+        label = "Mark complete";
+        action = complete_task;
+        arguments = {
+          id: @item.id,
+          revision: @item.revision,
+        };
+      }
+    }
+  }
+
+  runtime local {
+    bind = "127.0.0.1";
+    port = 7331;
+    database = ".nari/app.db";
+    request_limit_bytes = 65536;
+    request_timeout_ms = 5000;
+  }
+
+  recovery backend_process {
+    target = backend;
+    max_restarts = 3;
+    window_seconds = 60;
+    backoff_ms = [100, 500, 2000];
+    after_exhaustion = stop;
+  }
+
+  repair local_candidate {
+    mode = isolated;
+    max_attempts = 2;
+    editable_actions = [complete_task];
+    automatic_release = false;
+  }
+}
+</textarea></div>
+<p class="pg-fallback">The playground needs JavaScript and WebAssembly. Without them, this is the program it runs.</p>
+</figure>
+</div></section>
+<section aria-labelledby="testing"><div class="head"><h2 id="testing">Testing<a class="anchor" href="#testing" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p><code>nari test</code> builds the app and runs two sets of checks against it over real HTTP.</p>
+<p>The first set is generated from the program. For every action it checks that an unauthenticated request, a missing CSRF token, an unknown field and an out-of-bounds input are all rejected, and that one user cannot see another's records.</p>
+<p>The second set is yours. Each file in <code>acceptance/</code> is a scenario written as data:</p>
+<pre><code class="language-json">{
+  "name": "a greeting is saved for its author only",
+  "covers": ["hello/action/say", "hello/action/greetings"],
+  "steps": [
+    { "as": "a", "action": "say", "input": { "text": "Hello, world" }, "expect": { "status": 200, "data": { "text": "Hello, world" } } },
+    { "as": "b", "action": "say", "input": { "text": "" }, "expect": { "status": 400 } }
+  ]
+}</code></pre>
+<p>Each step calls an action as user <code>a</code> or <code>b</code>. <code>expect.data</code> is a subset match. <code>"save": "task"</code> keeps a response so that a later step can use <code>"$task.id"</code>. These files are called protected tests because an automated repair is never allowed to change them.</p>
+</div></section>
+<section aria-labelledby="reading-errors"><div class="head"><h2 id="reading-errors">Reading errors<a class="anchor" href="#reading-errors" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>Diagnostics name the file, line and column, an error code, and the id of the declaration at fault:</p>
+<pre><code>hello.nari:37:14: error E_TYPE: input 'text' is Text but field 'owner' is UUID (no implicit casts) [hello/action/say]
+hello.nari:63:17: error E_UNRESOLVED: entity Greeting has no field 'txt' [hello/screen/home/list/said]</code></pre>
+<p>The first came from assigning <code>owner: @input.text</code>. The second came from a list that asked for a field the entity does not have. <code>nari check --json</code> gives the same information with byte spans for editors and agents.</p>
+<p>The id in brackets is stable. <code>hello/action/say</code> stays the same when lines move, and the same id names that action in <code>ir.json</code>, the dependency graph, test coverage and incident records.</p>
+</div></section>
+<section aria-labelledby="changing-a-program"><div class="head"><h2 id="changing-a-program">Changing a program<a class="anchor" href="#changing-a-program" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>Edit the file and run <code>nari dev</code> again. When the app starts against a database from an older version of the program, additive changes are applied automatically: new entities, new fields that have a default, and wider text bounds.</p>
+<p>Changes that would lose or reinterpret stored data stop startup with <code>MIGRATION_REQUIRED</code>. That covers removing or renaming a field, changing a type, and adding a field without a default. <code>nari diff --base PATH</code> compares two versions of a program and says which changes apply on their own and which block.</p>
+</div></section>
+<section aria-labelledby="what-01-leaves-out"><div class="head"><h2 id="what-01-leaves-out">What 0.1 leaves out<a class="anchor" href="#what-01-leaves-out" aria-hidden="true" tabindex="-1">#</a></h2></div><div class="body">
+<p>These are rejected with a diagnostic rather than half-supported:</p>
+<ul><li>Public or anonymous access, and sharing a record between users.</li><li>Delete actions, list filters and sorting.</li><li>Floats, dates, nullable fields and references between entities.</li><li>Custom Rust or JavaScript, workflows and calls to external services.</li><li>Mobile targets.</li></ul>
+<p>For deployment with Docker, sign-in with OpenID Connect and the repair pipeline, continue with the <a href="https://github.com/Alibek10599/imanari/blob/main/README.md">README</a>. For exact rules, see the <a href="https://github.com/Alibek10599/imanari/blob/main/docs/spec.md">specification</a>.</p>
+</div></section>
+</article>
+</main>
+<script src="play.js" defer></script>
+
+<footer class="bottom">
+  <p>Named after the Imanari roll, a rolling entry into a leg entanglement.</p>
+  <p>Imanari is dual-licensed under <a href="https://github.com/Alibek10599/imanari/blob/main/LICENSE-MIT">MIT</a> and <a href="https://github.com/Alibek10599/imanari/blob/main/LICENSE-APACHE">Apache 2.0</a>. Source, issues and releases are on <a href="https://github.com/Alibek10599/imanari">GitHub</a>.</p>
+</footer>
+</body>
+</html>
